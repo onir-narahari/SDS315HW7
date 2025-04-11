@@ -1,0 +1,259 @@
+---
+title: "HW7"
+author: "Onir Narahari, ovn69"
+date: "2025-02-12"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(MatchIt)
+```
+
+[Github link](https://github.com/onir-narahari/SDS315HW7)
+
+## Problem 1: Armfolding
+
+### Part A
+```{r}
+data <- read_csv("armfold.csv")
+data %>% count(Sex)
+
+m_prop <- mean(data$LonR_fold[data$Sex == "Male"])
+f_prop <- mean(data$LonR_fold[data$Sex == "Female"])
+
+m_prop
+f_prop
+
+```
+
+### Part B
+```{r}
+observed_gap <- m_prop - f_prop
+observed_gap
+
+```
+
+### Part C
+To find the standard error for the difference between two sample proportions:
+
+ SE = square root((p1(1 - p1)/n1) + (p2(1 - p2)/n2))
+
+
+
+p₁ = 0.472 (the proportion for males)
+
+n₁ = 106 (number of males)
+
+p₂ = 0.423 (the proportion for females)
+
+n₂ = 111 (number of females)
+
+z = 1.96 (used for a 95% confidence level)
+
+```{r}
+count_m <- sum(data$Sex == "Male")
+count_f <- sum(data$Sex == "Female")
+
+sum_m <- sum(data$LonR_fold[data$Sex == "Male"])
+sum_f <- sum(data$LonR_fold[data$Sex == "Female"])
+
+p_m <- sum_m / count_m
+p_f <- sum_f / count_f
+
+gap <- p_m - p_f
+se <- sqrt((p_m * (1 - p_m)) / count_m + (p_f * (1 - p_f)) / count_f)
+z <- 1.96
+low <- gap - z * se
+high <- gap + z * se
+
+cat("Standard Error:", se, "\n")
+cat("95% CI Lower Bound:", low, "\n")
+cat("95% CI Upper Bound:", high, "\n")
+cat("Handwritten 95% CI Lower Bound:", low, "\n")
+cat("Handwritten 95% CI Upper Bound:", high, "\n")
+
+```
+
+### Part D
+If we ran this experiment a bunch of times with new random groups of students, about 95% of the confidence intervals we get would include the real difference between males and females.
+
+
+
+### Part E
+The standard error tells us how much the difference between the two sample proportions would bounce around if we kept doing this experiment over and over.
+
+
+### Part F
+The sampling distribution is all the different results we’d get for the difference in male vs. female proportions if we kept taking new samples. The actual proportions in the population don’t change, but the samples would, so the results would vary a bit each time.
+
+
+### Part G
+We can use the normal distribution here because the sample is big enough. The Central Limit Theorem says that if our sample size is large, the results we get from sampling over and over should follow a normal curve.
+
+
+### Part H
+If the confidence interval was something like -0.01 to 0.30, that means there might be no difference at all, or there might be a pretty big difference. Since zero is inside the range, we can't say for sure there's a real difference.
+
+
+### Part I
+If we repeated the experiment with new random people, the numbers in the confidence interval would change a little, but 95% of those intervals should still catch the true difference in the population.
+
+## Problem 2
+
+### Part A
+
+```{r}
+library(readr)
+library(dplyr)
+
+data <- read_csv("turnout.csv")
+
+treated <- data %>% filter(GOTV_call == 1)
+control <- data %>% filter(GOTV_call == 0)
+
+prop_treated <- mean(treated$voted1998)
+prop_control <- mean(control$voted1998)
+effect_estimate <- prop_treated - prop_control
+
+n_treated <- nrow(treated)
+n_control <- nrow(control)
+
+se_effect <- sqrt((prop_treated * (1 - prop_treated)) / n_treated +
+                  (prop_control * (1 - prop_control)) / n_control)
+
+margin_error <- 1.96 * se_effect
+ci_lower <- effect_estimate - margin_error
+ci_upper <- effect_estimate + margin_error
+
+cat("95% CI for GOTV effect:", ci_lower, "to", ci_upper, "\n")
+
+```
+
+### Part B
+
+```{r}
+library(dplyr)
+turnout <- read_csv("turnout.csv")
+
+turnout %>%
+  group_by(GOTV_call) %>%
+  summarise(
+    mean_v96 = mean(voted1996),
+    mean_age = mean(AGE),
+    mean_party = mean(MAJORPTY),
+    mean_v98 = mean(voted1998)
+  )
+
+prop_ci <- function(var) {
+  t_val <- mean(as.numeric(turnout[turnout$GOTV_call == 1, ][[var]]))
+  c_val <- mean(as.numeric(turnout[turnout$GOTV_call == 0, ][[var]]))
+  t_n <- sum(turnout$GOTV_call == 1)
+  c_n <- sum(turnout$GOTV_call == 0)
+  se <- sqrt((t_val * (1 - t_val)) / t_n + (c_val * (1 - c_val)) / c_n)
+  margin <- 1.96 * se
+  c(Diff = t_val - c_val, Lower = t_val - c_val - margin, Upper = t_val - c_val + margin)
+}
+
+mean_ci <- function(var) {
+  t_mean <- mean(turnout[turnout$GOTV_call == 1, ][[var]])
+  c_mean <- mean(turnout[turnout$GOTV_call == 0, ][[var]])
+  t_sd <- sd(turnout[turnout$GOTV_call == 1, ][[var]])
+  c_sd <- sd(turnout[turnout$GOTV_call == 0, ][[var]])
+  t_n <- sum(turnout$GOTV_call == 1)
+  c_n <- sum(turnout$GOTV_call == 0)
+  se <- sqrt(t_sd^2 / t_n + c_sd^2 / c_n)
+  margin <- 1.96 * se
+  c(Diff = t_mean - c_mean, Lower = t_mean - c_mean - margin, Upper = t_mean - c_mean + margin)
+}
+
+ci_v96 <- prop_ci("voted1996")
+ci_party <- prop_ci("MAJORPTY")
+ci_age <- mean_ci("AGE")
+
+ci_table <- rbind(
+  voted1996 = ci_v96,
+  MAJORPTY = ci_party,
+  AGE = ci_age
+)
+
+ci_table
+
+
+```
+
+### Part C
+
+```{r}
+library(MatchIt)
+library(dplyr)
+
+matched_output <- matchit(GOTV_call ~ voted1996 + AGE + MAJORPTY, data = turnout, method = "nearest", ratio = 5)
+matched_set <- match.data(matched_output)
+
+matched_set %>%
+  group_by(GOTV_call) %>%
+  summarise(
+    avg_v96 = mean(voted1996),
+    avg_age = mean(AGE),
+    avg_party = mean(MAJORPTY)
+  )
+
+prop_ci <- function(df, var) {
+  treated <- mean(df[df$GOTV_call == 1, ][[var]])
+  control <- mean(df[df$GOTV_call == 0, ][[var]])
+  n_treat <- sum(df$GOTV_call == 1)
+  n_ctrl <- sum(df$GOTV_call == 0)
+  error <- sqrt((treated * (1 - treated)) / n_treat + (control * (1 - control)) / n_ctrl)
+  margin <- 1.96 * error
+  c(Diff = treated - control, Lower = treated - control - margin, Upper = treated - control + margin)
+}
+
+mean_ci <- function(df, var) {
+  mean_treat <- mean(df[df$GOTV_call == 1, ][[var]])
+  mean_ctrl <- mean(df[df$GOTV_call == 0, ][[var]])
+  sd_treat <- sd(df[df$GOTV_call == 1, ][[var]])
+  sd_ctrl <- sd(df[df$GOTV_call == 0, ][[var]])
+  n_treat <- sum(df$GOTV_call == 1)
+  n_ctrl <- sum(df$GOTV_call == 0)
+  error <- sqrt(sd_treat^2 / n_treat + sd_ctrl^2 / n_ctrl)
+  margin <- 1.96 * error
+  c(Diff = mean_treat - mean_ctrl, Lower = mean_treat - mean_ctrl - margin, Upper = mean_treat - mean_ctrl + margin)
+}
+
+balance_check <- rbind(
+  voted1996 = prop_ci(matched_set, "voted1996"),
+  MAJORPTY = prop_ci(matched_set, "MAJORPTY"),
+  AGE = mean_ci(matched_set, "AGE")
+)
+
+balance_check <- as.data.frame(balance_check)
+colnames(balance_check) <- c("Difference", "95% CI Lower", "95% CI Upper")
+print(balance_check)
+
+treated_group <- matched_set %>% filter(GOTV_call == 1)
+control_group <- matched_set %>% filter(GOTV_call == 0)
+
+vote_rate_treated <- mean(treated_group$voted1998)
+vote_rate_control <- mean(control_group$voted1998)
+vote_gap <- vote_rate_treated - vote_rate_control
+
+n_t <- nrow(treated_group)
+n_c <- nrow(control_group)
+se_vote <- sqrt((vote_rate_treated * (1 - vote_rate_treated)) / n_t + (vote_rate_control * (1 - vote_rate_control)) / n_c)
+margin_vote <- 1.96 * se_vote
+ci_lower_vote <- vote_gap - margin_vote
+ci_upper_vote <- vote_gap + margin_vote
+
+cat("Proportion voted in 1998 (GOTV = 1):", round(vote_rate_treated, 4), "\n")
+cat("Proportion voted in 1998 (GOTV = 0):", round(vote_rate_control, 4), "\n")
+cat("Estimated Effect (Difference):", round(vote_gap, 4), "\n")
+cat("95% Confidence Interval:", round(ci_lower_vote, 4), "to", round(ci_upper_vote, 4), "\n")
+
+```
+
+After matching, the differences in `voted1996`, `AGE`, and `MAJORPTY` between the GOTV and control groups are really small, and their confidence intervals include zero. That means these groups are now pretty similar on those things, so any difference we see in 1998 voting is probably because of the GOTV call and not something else.
